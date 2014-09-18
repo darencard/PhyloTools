@@ -30,24 +30,35 @@ parser = optparse.OptionParser(usage=usage)
 parser.add_option("--input", action="store", type="string", dest="input", help="""The input alignment file""")
 parser.add_option("--output", action="store", type="string", dest="output", help="""The file name for SNAPP nexus output [output.nex]""", default="output.nex")
 parser.add_option("--type", action="store", type="string", dest= "type", help="""The type of input alignment file (nexus, phylip, fasta, etc.)""")
-#parser.add_option("--missing", action="store", type="string", dest="miss", help="""The amount of missing data allowed (0-1), after which a locus is excluded""")
-parser.add_option("--missing", action="store_true", dest="miss", help="""Specify flag to allow missing data""")
+parser.add_option("--missing", action="store", type="string", dest="miss", help="""The amount of missing data allowed (0-1), after which a locus is excluded""")
+#parser.add_option("--missing", action="store_true", dest="miss", help="""Specify flag to allow missing data""")
 
 options, args = parser.parse_args()
 
 def reformat_alignment(new_align):	
 	alignment = AlignIO.read(options.input, options.type)
+	for record in alignment:
+		print record.id
+#		print len(record)
+		misscount = record.seq.count('N')
+#		print misscount
+		taxamiss = float(misscount)/len(record)
+		print taxamiss
 	new_alignment = list()
 	for w in xrange(alignment.get_alignment_length()):
-		bases = alignment[:, w] 		
-		uniqs = list()
-		uniqs = list(set(bases))
-		if options.miss == True: 
+		bases = alignment[:, w] 	
+		ncount = bases.count('N')
+		length = float(len(bases))
+		missing = ncount/length
+		if missing < float(options.miss):
+			uniqs = list()
+			uniqs = list(set(bases))
 			nuniqs = filter(lambda a: a != "N", uniqs) # Filter out N's to check for biallelic-ness
-			print len(nuniqs)
 			if len(nuniqs) != 2: # Check for biallelic-ness
-				print "Skipping site {0} - not a biallelic SNP".format(w)	
+#				print "Skipping site {0} - not a biallelic SNP".format(w)
+				nothing = 1
 			else:
+#				print "Including site {0}".format(w)
 				allele1 = nuniqs[0]
 				allele2 = nuniqs[1]
 				new_snp = [0]*(len(bases))				
@@ -59,27 +70,9 @@ def reformat_alignment(new_align):
 					elif bases[x] == "N":
 						new_snp[x] = "?"			
 				new_alignment.append(new_snp)
-		elif options.miss == False:
-			if "N" in uniqs:
-				print "Skipping site {0} - contains missing data".format(w)	 
-			else:
-				nuniqs = filter(lambda a: a != "N", uniqs) # Filter out N's to check for biallelic-ness
-				print nuniqs
-				if len(nuniqs) != 3: # Check for biallelic-ness
-					print "Skipping site {0} - not a biallelic SNP".format(w)	
-				else:
-					allele1 = nuniqs[0]
-					allele2 = nuniqs[1]
-					new_snp = [0]*(len(bases))				
-					for x in range(len(bases)-1):
-						if bases[x] == allele1:
-							new_snp[x] = 0
-						elif bases[x] == allele2:
-							new_snp[x] = 1
-						elif bases[x] == "N":
-							new_snp[x] = "?"
-					new_alignment.append(new_snp)
-	print new_alignment
+#		else:
+#			print "Skipping site {0} - too much missing data".format(w)
+#	print len(new_alignment)
 	write_outfile(alignment, new_alignment)
 
 
@@ -91,7 +84,7 @@ def write_outfile(alignment, new_alignment):
 	out.write("\tFormat datatype=binary symbols=\"01\" gap=- missing=?;\n")
 	out.write("\tMatrix\n")
 	for x in range(len(alignment[:,1])): # Loop through individuals
-		out.write(alignment[x].id)				
+		out.write(alignment[x].id+"\t")				
 		for y in range(len(new_alignment)): # Loop over alignment columns
 			out.write("{0}".format(new_alignment[y][x])) # Write nucleotides
 			out.flush()
